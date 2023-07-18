@@ -32,7 +32,7 @@ from langchain.prompts import PromptTemplate
 from util.embeddings import load_vector_db
 from util.mptbot import HuggingFacePipelineLocal
 from util.QAbot import QABot
-from DatabricksApp import DatabricksApp
+from util.DatabricksApp import DatabricksApp
 
 from langchain import LLMChain
 
