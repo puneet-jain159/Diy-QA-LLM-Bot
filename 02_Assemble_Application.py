@@ -31,7 +31,7 @@ import pandas as pd
 import mlflow
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.embeddings import HuggingFaceEmbeddings,HuggingFaceInstructEmbeddings
 from langchain.vectorstores.faiss import FAISS
 from langchain.schema import BaseRetriever
 from langchain.prompts import SystemMessagePromptTemplate, HumanMessagePromptTemplate, ChatPromptTemplate
@@ -56,7 +56,7 @@ from util.mptbot import HuggingFacePipelineLocal
 # COMMAND ----------
 
 # DBTITLE 1,Specify Question
-question =   "what is the Purchase  price mentioned in the Policy Schedule / Validation Certificate?"
+question =   "Policy Schedule / Validation Certificate"
 
 # COMMAND ----------
 
@@ -68,10 +68,10 @@ question =   "what is the Purchase  price mentioned in the Policy Schedule / Val
 
 # DBTITLE 1,Retrieve Relevant Documents
 # open vector store to access embeddings
-if config['model_id'] == 'openai' :
-  embeddings = OpenAIEmbeddings(model=config['embedding_model'])
-else:
-  embeddings = HuggingFaceEmbeddings(model_name=config['embedding_model'])
+# if config['model_id'] == 'openai' :
+#   embeddings = OpenAIEmbeddings(model=config['embedding_model'])
+# else:
+#    embeddings = HuggingFaceInstructEmbeddings(model_name=config['embedding_model'])
 
 # load the documents in the vector store
 vector_store = FAISS.load_local(embeddings=embeddings, folder_path=config['vector_store_path'])
@@ -183,7 +183,7 @@ class QABot():
     result = True # default response
 
     badanswer_phrases = [ # phrases that indicate model produced non-answer
-      "no information", "no context", "don't know", "no clear answer", "sorry","not mentioned",
+      "no information", "no context", "don't know", "no clear answer", "sorry","not mentioned","do not know",
       "no answer", "no mention", "context does not provide", "no helpful answer", "not specified","not know the answer",
       "given context", "no helpful", "no relevant", "no question", "not clear","not explicitly mentioned",
       "don't have enough information", " does not have the relevant information", "does not seem to be directly related"
@@ -261,6 +261,7 @@ class QABot():
       # get output from results
       generation = output.generations[0][0]
       answer = generation.text
+      print("answer:",answer)
       output_metadata = output.llm_output
 
       # assemble results if not no_answer
@@ -270,6 +271,11 @@ class QABot():
         result['output_metadata'] = output_metadata
         result['vector_doc'] = text
         break # stop looping if good answer
+      else:
+        result['answer'] = "Could not fine answer please rephrase the question or provide more context?"
+        result['source'] = "NA"
+        result['output_metadata'] = "NA"
+        result['vector_doc'] = "NA"
       
     return result
 
@@ -289,7 +295,7 @@ class QABot():
 
 # COMMAND ----------
 
-question =   "what is the Insurance number mentioned in the Policy Schedule / Validation Certificate?"
+question =   "what are the regions covered by the policy"
 
 # COMMAND ----------
 

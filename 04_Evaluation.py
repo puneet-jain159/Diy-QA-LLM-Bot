@@ -116,4 +116,3 @@ results['same_as_answer'].sum() / len(results)
 
 # COMMAND ----------
 
-

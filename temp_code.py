@@ -116,4 +116,3 @@ screen, tyres and wheels, headlights, the undercarriage or the roof.\nb) loss of
 
 question =   "what is the start date of the policy mentioned in the  Policy Schedule / Validation Certificate?"
 config['human_message_template'] = """<|im_start|>system\n-You are a helpful assistant chatbot trained by MosaicML.\n-You answer questions.-if you cannot find the answer , say I do not know. \n-If the query doesn't form a complete question, just say I don't know\n-If there is a good answer from the context, try to summarize the context to answer the question. \n<|im_end|>\n<|im_start|>user\n Given the context: {context}. Answer the question {question} <|im_end|><|im_start|>assistant\n""".strip()
-
