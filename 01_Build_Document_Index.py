@@ -31,7 +31,7 @@ import json
 
 from langchain.text_splitter import TokenTextSplitter
 from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.embeddings import HuggingFaceEmbeddings,HuggingFaceInstructEmbeddings
 from langchain.vectorstores.faiss import FAISS
 
 # COMMAND ----------
@@ -48,11 +48,19 @@ from langchain.vectorstores.faiss import FAISS
 # COMMAND ----------
 
 # DBTITLE 1,Read Data from txt to Dataframe
-f = open("/dbfs/FileStore/Collision_Damage_Waiver-2.txt", "r")
-data =f.read()
+from langchain.docstore.document import Document
+from langchain.document_loaders import PyPDFDirectoryLoader
+
+loader_path = f"/dbfs/FileStore/{username}/"
+
+pdf_loader = PyPDFDirectoryLoader(loader_path)
+docs = pdf_loader.load()
+len(docs)
 
 import pandas as pd
-df = pd.DataFrame.from_dict({'full_text' : [data] , 'source' : ['Policy Document']})
+df = pd.DataFrame.from_dict({'page_content' : [doc.page_content for doc in docs] ,
+                            'source' :[doc.metadata['source'] for doc in docs],
+                            'page' :[doc.metadata['page']  for doc in docs]  })
 display(df)
 
 # COMMAND ----------
@@ -91,8 +99,9 @@ raw_inputs = (
   spark
     .table('policy_document')
     .selectExpr(
-      'full_text',
-      'source'
+      'page_content',
+      'source',
+      'page'
       )
   ) 
 
@@ -107,10 +116,10 @@ display(raw_inputs)
 # DBTITLE 1,Retrieve an Example of Long Text
 long_text = (
   raw_inputs
-    .select('full_text') # get just the text field
-    .orderBy(fn.expr("len(full_text)"), ascending=False) # sort by length
+    .select('page_content') # get just the text field
+    .orderBy(fn.expr("len(page_content)"), ascending=False) # sort by length
     .limit(1) # get top 1
-     .collect()[0]['full_text'] # pull text to a variable
+     .collect()[0]['page_content'] # pull text to a variable
   )
 
 # display long_text
@@ -142,7 +151,7 @@ for chunk in text_splitter.split_text(long_text):
 # COMMAND ----------
 
 # DBTITLE 1,Chunking Configurations
-chunk_size = 1024
+chunk_size = 1300
 chunk_overlap = 200
 
 # COMMAND ----------
@@ -161,8 +170,8 @@ def get_chunks(text):
 # split text into chunks
 chunked_inputs = (
   raw_inputs
-    .withColumn('chunks', get_chunks('full_text')) # divide text into chunks
-    .drop('full_text')
+    .withColumn('chunks', get_chunks('page_content')) # divide text into chunks
+    .drop('page_content')
     .withColumn('num_chunks', fn.expr("size(chunks)"))
     .withColumn('chunk', fn.expr("explode(chunks)"))
     .drop('chunks')
@@ -206,10 +215,11 @@ metadata_inputs = (
 
 # DBTITLE 1,Load Vector Store
 # identify embedding model that will generate embedding vectors
+
 if config['model_id'] == 'openai' :
   embeddings = OpenAIEmbeddings(model=config['openai_embedding_model'])
 else:
-  embeddings = HuggingFaceEmbeddings(model_name=config['embedding_model'])
+  embeddings = HuggingFaceInstructEmbeddings(model_name= config['embedding_model'])
 
 # instantiate vector store object
 vector_store = FAISS.from_texts(
@@ -238,5 +248,4 @@ vector_store.save_local(folder_path=config['vector_store_path'])
 # MAGIC | openai | Building applications with LLMs through composability | MIT  |   https://pypi.org/project/openai/ |
 
 # COMMAND ----------
-
 

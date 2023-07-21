@@ -32,7 +32,8 @@ from langchain.prompts import PromptTemplate
 from util.embeddings import load_vector_db
 from util.mptbot import HuggingFacePipelineLocal
 from util.QAbot import QABot
-from util.DatabricksApp import DatabricksApp
+from langchain.chat_models import ChatOpenAI
+from DatabricksApp import DatabricksApp
 
 from langchain import LLMChain
 
@@ -87,13 +88,13 @@ def respond(question, chat_history):
     print(question)
     info = qabot.get_answer(question)
     chat_history.append((question,info['answer']))
-    return "", chat_history , info['vector_doc']
+    return "", chat_history , info['vector_doc'], info['source']
 
 with gr.Blocks() as demo:
     with gr.Row():
         gr.Markdown(
-        """
-        # Policy Retrieval QA using Falcon-30b chat variant
+        f"""
+        # Policy Retrieval QA using {config['model_id']}
         The current version FAISS vector store to Fetch the most relevant paragraph's to create the bot
         """)
     with gr.Row():
@@ -103,11 +104,12 @@ with gr.Blocks() as demo:
             clear = gr.ClearButton([msg, chatbot])
         with gr.Column():
             raw_text = gr.Textbox(label="Document from which the answer was generated",scale=50)
+            raw_source = gr.Textbox(label="Source of the Document",scale=1)
     with gr.Row():
       examples = gr.Examples(examples=["What is the duration for the policy with the start and end date", "What is the limit of misfueling cover",
                                        "what does the policy say about loss of car keys","what is the vehicle age covered by the policy","what is the name of the policy holder"],
                         inputs=[msg])
-    msg.submit(respond, [msg, chatbot], [msg, chatbot,raw_text])
+    msg.submit(respond, [msg, chatbot], [msg, chatbot,raw_text,raw_source])
 
 # COMMAND ----------
 
