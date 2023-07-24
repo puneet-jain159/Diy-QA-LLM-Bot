@@ -55,7 +55,7 @@ from azure.ai.formrecognizer import DocumentAnalysisClient
 from azure.core.credentials import AzureKeyCredential
 
 endpoint = "https://pj-form.cognitiveservices.azure.com/"
-key  = AzureKeyCredential("70a36ee3e80c4e588f462702a59ca07a")
+key  = AzureKeyCredential("XXXXXXXXXX")
 
 # COMMAND ----------
 
