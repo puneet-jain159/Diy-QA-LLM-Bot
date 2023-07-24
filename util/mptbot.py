@@ -35,6 +35,7 @@ class HuggingFacePipelineLocal(LLM):
         cls,
         model_id: str,
         task: str,
+        revision: str = None,
         device_map: str = 'auto',
         trust_remote_code: bool = True,
         model_kwargs: Optional[dict] = None,
@@ -62,7 +63,7 @@ class HuggingFacePipelineLocal(LLM):
         try :
           print("Checking if the model has been already downloaded ....")
           model_dir =snapshot_download(model_id,
-                    # revision = revision,
+                    revision = revision,
                     resume_download=True,
                     local_files_only = True)
         except:
@@ -93,6 +94,9 @@ class HuggingFacePipelineLocal(LLM):
           config_lm.attn_config['attn_impl'] = 'triton'  # change this to use triton-based FlashAttention
           config_lm.init_device = 'cuda:0'
           torch_dtype = torch.bfloat16
+        elif  "Llama-2" in model_id:
+          torch_dtype = torch.bfloat16
+
 
         model = AutoModelForCausalLM.from_pretrained(
                 model_dir,
@@ -100,7 +104,7 @@ class HuggingFacePipelineLocal(LLM):
                 torch_dtype=torch_dtype, # Load model weights in bfloat16
                 trust_remote_code=trust_remote_code,
                 # revision=revision,
-                device_map = 'auto',
+                device_map = 'sequential',
                 **model_kwargs)
 
         return cls(
@@ -133,7 +137,10 @@ class HuggingFacePipelineLocal(LLM):
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> str:
-        response = self.mpt_instruct_generate(prompt)
+        if "mpt" in self.model_id:
+          response = self.mpt_instruct_generate(prompt)
+        elif "/Llama-2" in self.model_id:
+          response = self.llama2_instruct_generate(prompt)
         return response
     
 
@@ -184,7 +191,53 @@ class HuggingFacePipelineLocal(LLM):
           # print("prompt:...", prompt)
           generated_text = generator(prompt, **self.pipeline_kwargs)[0]["generated_text"]
           # print("generated_text:...", generated_text)
-        elif isinstance(prompt, list):
-          outputs = generator(prompt, **self.pipeline_kwargs)
-          generated_text = [out[0]["generated_text"] for out in outputs]
+        return generated_text
+      
+    def llama2_instruct_generate(self,prompt):
+        '''
+        Def llama2_instruct_generate
+        '''
+        from transformers import pipeline as hf_pipeline
+        import torch
+
+        if 'max_new_tokens' not in self.pipeline_kwargs:
+          self.pipeline_kwargs['max_new_tokens'] = 256
+
+        if 'temperature' not in self.pipeline_kwargs:
+          self.pipeline_kwargs['temperature'] = 0.15
+
+        if 'top_k' not in self.pipeline_kwargs:
+          self.pipeline_kwargs['top_k'] = 0
+
+        if 'top_p' not in self.pipeline_kwargs:
+          self.pipeline_kwargs['top_p'] = 1
+        if 'eos_token_id' not in self.pipeline_kwargs:
+          self.pipeline_kwargs['eos_token_id'] = self.tokenizer.eos_token_id
+          self.pipeline_kwargs['pad_token_id'] = self.tokenizer.eos_token_id
+        
+        if 'do_sample' not in self.pipeline_kwargs:
+          self.pipeline_kwargs['do_sample'] = True
+        
+        self.pipeline_kwargs['use_cache'] = True
+
+        # if 'num_return_sequences' not in self.pipeline_kwargs:
+        #   self.pipeline_kwargs['num_return_sequences'] = 1
+        # print("self.pipeline_kwargs:" ,self.pipeline_kwargs)
+        # print("Prompt" ,[prompt])
+
+        generator = hf_pipeline("text-generation",
+                            model=self.pipeline, 
+                            config=self.config, 
+                            tokenizer=self.tokenizer,
+                            torch_dtype=torch.bfloat16)
+          
+          
+        if "return_full_text" not in self.pipeline_kwargs:
+            self.pipeline_kwargs["return_full_text"] = False
+
+      
+        if isinstance(prompt, str):
+          # print("prompt:...", prompt)
+          generated_text = generator(prompt, **self.pipeline_kwargs)[0]["generated_text"]
+          # print("generated_text:...", generated_text)
         return generated_text

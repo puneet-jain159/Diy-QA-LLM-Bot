@@ -24,9 +24,9 @@ class QABot():
     result = True # default response
 
     badanswer_phrases = [ # phrases that indicate model produced non-answer
-      "no information", "no context", "don't know", "no clear answer", "sorry","not mentioned",
-      "no answer", "no mention", "reminder", "context does not provide", "no helpful answer", "not specified","not know the answer",
-      "given context", "no helpful", "no relevant", "no question", "not clear","not explicitly mentioned",
+      "no information", "no context", "don't know", "no clear answer", "sorry","not mentioned","do not know","I don't see any information",
+      "no answer", "no mention", "context does not provide", "no helpful answer", "not specified","not know the answer", 
+      "no helpful", "no relevant", "no question", "not clear","not explicitly mentioned",
       "don't have enough information", " does not have the relevant information", "does not seem to be directly related"
       ]
     
@@ -102,6 +102,7 @@ class QABot():
       # get output from results
       generation = output.generations[0][0]
       answer = generation.text
+      print("answer: ",answer)
       output_metadata = output.llm_output
 
       # assemble results if not no_answer
@@ -111,5 +112,10 @@ class QABot():
         result['output_metadata'] = output_metadata
         result['vector_doc'] = text
         break # stop looping if good answer
+      else:
+        result['answer'] = "could not find answer the question. please elaborate or provide more context?"
+        result['source'] = source
+        result['output_metadata'] = output_metadata
+        result['vector_doc'] = text
       
     return result

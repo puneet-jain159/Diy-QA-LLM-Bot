@@ -71,7 +71,6 @@ model = transformers.AutoModelForCausalLM.from_pretrained(
 
 # COMMAND ----------
 
-
 from transformers import AutoTokenizer
 tokenizer = AutoTokenizer.from_pretrained('mosaicml/mpt-30b',
                                           padding='left'

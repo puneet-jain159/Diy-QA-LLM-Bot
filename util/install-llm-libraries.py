@@ -1,5 +1,5 @@
 # Databricks notebook source
-# MAGIC %pip install -U ray[default]==2.5.1 transformers==4.29.2 Xformers sentence-transformers==2.2.2 langchain==0.0.190 chromadb==0.3.25 pypdf==3.9.1 pycryptodome==3.18.0 accelerate==0.19.0 unstructured==0.7.1 unstructured[local-inference]==0.7.1 sacremoses==0.0.53 ninja==1.11.1 torch==2.0.1 pytorch-lightning==2.0.1 tiktoken==0.4.0 openai==0.27.6 faiss-cpu==1.7.4  bitsandbytes typing-inspect==0.8.0 typing_extensions==4.5.0  triton-pre-mlir@git+https://github.com/vchiley/triton.git@triton_pre_mlir_sm90#subdirectory=python
+# MAGIC %pip install -U ray[default]==2.5.1 transformers==4.29.2 Xformers sentence-transformers==2.2.2 langchain==0.0.190 chromadb==0.3.25 pypdf==3.9.1 pycryptodome==3.18.0 accelerate==0.19.0 unstructured==0.7.1 unstructured[local-inference]==0.7.1 sacremoses==0.0.53 ninja==1.11.1 torch==2.0.1 pytorch-lightning==2.0.1 tiktoken==0.4.0 openai==0.27.6 faiss-cpu==1.7.4 InstructorEmbedding bitsandbytes typing-inspect==0.8.0 typing_extensions==4.5.0  triton-pre-mlir@git+https://github.com/vchiley/triton.git@triton_pre_mlir_sm90#subdirectory=python
 # MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------

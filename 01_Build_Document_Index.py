@@ -20,7 +20,7 @@
 # COMMAND ----------
 
 # DBTITLE 1,Install Required Libraries
-# MAGIC %run ./util/install-prep-libraries
+# MAGIC %run "./util/install-prep-libraries"
 
 # COMMAND ----------
 
@@ -47,21 +47,110 @@ from langchain.vectorstores.faiss import FAISS
 
 # COMMAND ----------
 
+# MAGIC %pip install azure-ai-formrecognizer
+
+# COMMAND ----------
+
+from azure.ai.formrecognizer import DocumentAnalysisClient
+from azure.core.credentials import AzureKeyCredential
+
+endpoint = "https://pj-form.cognitiveservices.azure.com/"
+key  = AzureKeyCredential("70a36ee3e80c4e588f462702a59ca07a")
+
+# COMMAND ----------
+
+def generate_doc(result):
+  doc = ''
+  t = []
+  for table_idx, table in enumerate(result.tables):
+      for cell in table.cells:
+          t.append(cell.content.replace(":selected:","").replace(":unselected:","").replace("\n","").strip())
+
+  if len(result.paragraphs) > 0:
+      for paragraph in result.paragraphs:
+          paragraph.content = paragraph.content.replace(":selected:","").replace(":unselected:","").replace("\n","").strip()
+          if  (paragraph.content not in t) and (paragraph.role not in ['pageNumber','pageFooter']):
+              doc += paragraph.content +'\n'
+
+  for table_idx, table in enumerate(result.tables):
+      for cell in table.cells:
+          cell.content = cell.content.replace(":selected:","").replace(":unselected:","")
+          if cell.kind:
+              header = cell.kind
+
+              doc += f"Cell[{cell.row_index}][{cell.column_index}] as {header} has text '{cell.content}'" + "\n" 
+          else:
+              header = None
+              doc += f"Cell[{cell.row_index}][{cell.column_index}] has text '{cell.content}'" +"\n"
+  return doc
+
+# COMMAND ----------
+
+rootdir = "/dbfs/FileStore/howden_azure_form_poc"
+filees = 'document_page21.pdf'
+
+with open(os.path.join(rootdir,filees), "rb") as fd:
+  document = fd.read()
+
+poller = document_analysis_client.begin_analyze_document("prebuilt-layout", document)
+result = poller.result()
+
+# COMMAND ----------
+
+print(generate_doc(result))
+
+# COMMAND ----------
+
+import os
+rootdir = "/dbfs/FileStore/howden_azure_form_poc"
+document_analysis_client = DocumentAnalysisClient(endpoint, key)
+Doc_collection = []
+
+for subdir, dirs, files in os.walk(rootdir):
+    for file in files:
+      with open(os.path.join(rootdir,file), "rb") as fd:
+        document = fd.read()
+
+      poller = document_analysis_client.begin_analyze_document("prebuilt-layout", document)
+      result = poller.result()
+
+      Doc_collection.append({
+        "full_text" : generate_doc(result),
+        "source" : os.path.join(rootdir,file)
+      })
+
+
+# COMMAND ----------
+
 # DBTITLE 1,Read Data from txt to Dataframe
 from langchain.docstore.document import Document
 from langchain.document_loaders import PyPDFDirectoryLoader
 
-loader_path = f"/dbfs/FileStore/{username}/"
+# f = open("/dbfs/FileStore/howden_poc_with_txt/Rainbow_Home___Policy_Wording_zam.txt", "r")
+# data =f.read()
 
-pdf_loader = PyPDFDirectoryLoader(loader_path)
-docs = pdf_loader.load()
-len(docs)
-
+# chunk = data.split("                       Rainbow Home insurance")
 import pandas as pd
-df = pd.DataFrame.from_dict({'page_content' : [doc.page_content for doc in docs] ,
-                            'source' :[doc.metadata['source'] for doc in docs],
-                            'page' :[doc.metadata['page']  for doc in docs]  })
+df = pd.DataFrame(Doc_collection)
+# df = pd.DataFrame.from_dict({'full_text' : chunk , 'source' : list(range(1,len(chunk)+1))})
 display(df)
+
+# COMMAND ----------
+
+# from langchain.docstore.document import Document
+# from langchain.document_loaders import PyPDFDirectoryLoader
+
+# loader_path ='/dbfs/FileStore/howden_poc/'
+
+# pdf_loader = PyPDFDirectoryLoader(loader_path)
+# docs = pdf_loader.load()
+# len(docs)
+
+# import pandas as pd
+# df = pd.DataFrame.from_dict({'page_content' : [doc.page_content for doc in docs] ,
+#                             'source' :[doc.metadata['source'] for doc in docs],
+#                             'page' :[doc.metadata['page']  for doc in docs]  })
+# display(df)
 
 # COMMAND ----------
 
@@ -77,11 +166,11 @@ _ = (
     .format('delta')
     .mode('overwrite')
     .option('overwriteSchema','true')
-    .saveAsTable('policy_document')
+    .saveAsTable('policy_document_howden')
   )
 
 # count rows in table
-print(spark.table('policy_document').count())
+print(spark.table('policy_document_howden').count())
 
 # COMMAND ----------
 
@@ -97,11 +186,10 @@ print(spark.table('policy_document').count())
 # DBTITLE 1,Retrieve Raw Inputs
 raw_inputs = (
   spark
-    .table('policy_document')
+    .table('policy_document_howden')
     .selectExpr(
-      'page_content',
-      'source',
-      'page'
+      'full_text',
+      'source'
       )
   ) 
 
@@ -116,10 +204,10 @@ display(raw_inputs)
 # DBTITLE 1,Retrieve an Example of Long Text
 long_text = (
   raw_inputs
-    .select('page_content') # get just the text field
-    .orderBy(fn.expr("len(page_content)"), ascending=False) # sort by length
+    .select('full_text') # get just the text field
+    .orderBy(fn.expr("len(full_text)"), ascending=False) # sort by length
     .limit(1) # get top 1
-     .collect()[0]['page_content'] # pull text to a variable
+     .collect()[0]['full_text'] # pull text to a variable
   )
 
 # display long_text
@@ -134,7 +222,7 @@ print(long_text)
 # COMMAND ----------
 
 # DBTITLE 1,Split Text into Chunks
-text_splitter = TokenTextSplitter(chunk_size=100, chunk_overlap=10)
+text_splitter = TokenTextSplitter(chunk_size=2000, chunk_overlap=300)
 for chunk in text_splitter.split_text(long_text):
   print(chunk, '\n')
 
@@ -151,8 +239,8 @@ for chunk in text_splitter.split_text(long_text):
 # COMMAND ----------
 
 # DBTITLE 1,Chunking Configurations
-chunk_size = 1300
-chunk_overlap = 200
+chunk_size = 2000
+chunk_overlap = 300
 
 # COMMAND ----------
 
@@ -170,8 +258,8 @@ def get_chunks(text):
 # split text into chunks
 chunked_inputs = (
   raw_inputs
-    .withColumn('chunks', get_chunks('page_content')) # divide text into chunks
-    .drop('page_content')
+    .withColumn('chunks', get_chunks('full_text')) # divide text into chunks
+    .drop('full_text')
     .withColumn('num_chunks', fn.expr("size(chunks)"))
     .withColumn('chunk', fn.expr("explode(chunks)"))
     .drop('chunks')
@@ -248,4 +336,5 @@ vector_store.save_local(folder_path=config['vector_store_path'])
 # MAGIC | openai | Building applications with LLMs through composability | MIT  |   https://pypi.org/project/openai/ |
 
 # COMMAND ----------
+
 

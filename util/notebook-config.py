@@ -1,12 +1,22 @@
 # Databricks notebook source
+import torch
+
+# COMMAND ----------
+
 if 'config' not in locals():
   config = {}
 
 # COMMAND ----------
 
+# DBTITLE 1,Location of the Documents
+config['loc'] = "/dbfs/FileStore/howden_poc"
+
+# COMMAND ----------
+
 # Define the model we would like to use
 # config['model_id'] = 'openai'
-config['model_id'] = 'mosaicml/mpt-30b-chat'
+config['model_id'] = 'meta-llama/Llama-2-13b-chat-hf'
+# config['model_id'] = 'mosaicml/mpt-30b-chat'
 username = dbutils.notebook.entry_point.getDbutils().notebook().getContext().tags().apply('user')
 
 # COMMAND ----------
@@ -32,7 +42,7 @@ if config['model_id'] == 'openai':
 
 # DBTITLE 1,Set document path
 config['kb_documents_path'] = "s3://db-gtm-industry-solutions/data/rcg/diy_llm_qa_bot/"
-config['vector_store_path'] = f"/dbfs/{username}/qabot/vector_store/{config['model_id']}" # /dbfs/... is a local file system representation
+config['vector_store_path'] = f"/dbfs/{username}/qabot/vector_store/{config['model_id']}/howden_poc" # /dbfs/... is a local file system representation
 
 # COMMAND ----------
 
@@ -59,12 +69,30 @@ elif config['model_id'] == 'mosaicml/mpt-30b-chat' :
   config['embedding_model'] = 'intfloat/e5-large-v2'
 
   # Model parameters
-  config['model_kwargs'] = {"load_in_8bit" : True}
+  config['model_kwargs'] = {"load_in_8bit" : True,
+                            "bnb_8bit_compute_dtype":torch.bfloat16}
   config['pipeline_kwargs']={"temperature":  0.10,
                             "max_new_tokens": 256}
   
-  config['template'] = """<|im_start|>system\n-You are a helpful assistant chatbot trained by MosaicML.\n-You answer questions.-if you cannot find the answer , say I do not know. \n-If the query doesn't form a complete question, just say I don't know\n-If there is a good answer from the context\n-If the context does not provide enough relevant information to determine the answer, just say I don't know, try to summarize the context to answer the question. \n<|im_end|>\n<|im_start|>user\n Given the context: {context}. Answer the question {question} <|im_end|><|im_start|>assistant\n""".strip()
-  config['temperature'] = 0.15
+  config['template'] = """<|im_start|>system\n-You are a helpful assistant chatbot trained by MosaicML. You are good at helping to answer a question based on the context provided, the context is a document. \n-If the question doesn't form a complete sentence, just say I don't know.\n-If the context is irrelevant to the question, just say I don't know.,\n-If there is a good answer from the context, try to summarize the answer to the question. \n<|im_end|>\n<|im_start|>user\n Given the context: {context}. Answer the question {question} <|im_end|><|im_start|>assistant\n""".strip()
+
+elif config['model_id'] == 'meta-llama/Llama-2-13b-chat-hf' :
+  # Setup prompt template ####
+  config['embedding_model'] = 'hkunlp/instructor-xl'
+  
+  config['model_kwargs'] = {"load_in_8bit" : True}
+
+  # Model parameters
+  config['pipeline_kwargs']={"temperature":  0.10,
+                            "max_new_tokens": 256}
+  
+  config['template'] = """<s>[INST] <<SYS>>
+    You are a helpful, respectful and honest assistant.you are good at helping to answer a question based on the context provided, the context is a document. If the context does not provide enough relevant information to determine the answer, just say I don't know. If the context is irrelevant to the question, just say I don't know. If you did not find a good answer from the context, just say I don't know. If the query doesn't form a complete question, just say I don't know. If there is a good answer from the context, try to summarize the context to answer the question.
+    <</SYS>> Given the context: {context}. Answer the question {question}
+    [/INST]""".strip()
+
+
+
 
 # COMMAND ----------
 

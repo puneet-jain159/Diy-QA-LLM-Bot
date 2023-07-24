@@ -49,6 +49,13 @@ from util.mptbot import HuggingFacePipelineLocal
 
 # COMMAND ----------
 
+from huggingface_hub import notebook_login
+
+# Login to Huggingface to get access to the model
+notebook_login()
+
+# COMMAND ----------
+
 # MAGIC %md ##Step 1: Explore Answer Generation
 # MAGIC
 # MAGIC To get started, let's explore how we will derive an answer in response to a user provide question.  We'll start by defining that question here:
@@ -56,7 +63,7 @@ from util.mptbot import HuggingFacePipelineLocal
 # COMMAND ----------
 
 # DBTITLE 1,Specify Question
-question =   "Policy Schedule / Validation Certificate"
+question =   "what are limits of the High risk property in the policy?"
 
 # COMMAND ----------
 
@@ -68,22 +75,22 @@ question =   "Policy Schedule / Validation Certificate"
 
 # DBTITLE 1,Retrieve Relevant Documents
 # open vector store to access embeddings
-# if config['model_id'] == 'openai' :
-#   embeddings = OpenAIEmbeddings(model=config['embedding_model'])
-# else:
-#    embeddings = HuggingFaceInstructEmbeddings(model_name=config['embedding_model'])
+if config['model_id'] == 'openai' :
+  embeddings = OpenAIEmbeddings(model=config['embedding_model'])
+else:
+   embeddings = HuggingFaceInstructEmbeddings(model_name=config['embedding_model'])
 
 # load the documents in the vector store
 vector_store = FAISS.load_local(embeddings=embeddings, folder_path=config['vector_store_path'])
 
 # configure document retrieval 
-n_documents = 5 # number of documents to retrieve 
+n_documents = 10 # number of documents to retrieve 
 retriever = vector_store.as_retriever(search_kwargs={'k': n_documents}) # configure retrieval mechanism
 
 # get relevant documents
 docs = retriever.get_relevant_documents(question)
 for doc in docs: 
-  print(doc,'\n') 
+  print(doc.page_content,'*'*50) 
 
 # COMMAND ----------
 
@@ -183,9 +190,9 @@ class QABot():
     result = True # default response
 
     badanswer_phrases = [ # phrases that indicate model produced non-answer
-      "no information", "no context", "don't know", "no clear answer", "sorry","not mentioned","do not know",
-      "no answer", "no mention", "context does not provide", "no helpful answer", "not specified","not know the answer",
-      "given context", "no helpful", "no relevant", "no question", "not clear","not explicitly mentioned",
+      "no information", "no context", "don't know", "no clear answer", "sorry","not mentioned","do not know","I don't see any information",
+      "no answer", "no mention", "context does not provide", "no helpful answer", "not specified","not know the answer", 
+      "no helpful", "no relevant", "no question", "not clear","not explicitly mentioned",
       "don't have enough information", " does not have the relevant information", "does not seem to be directly related"
       ]
     
@@ -285,17 +292,15 @@ class QABot():
 
 # COMMAND ----------
 
-# what is limit of the misfueling cost covered in the policy?
-# what is the name of policy holder?
-# what is the duration for the policy?
-# what is limit of the misfueling cost covered in the policy?
-# "what is the vehicle age covered by the policy?"
-# "what are the regions covered by the policy?"
-# answer the question Is Mumbai covered as a region in the policy?
+# what is the definition of Unoccupied in the policy?
+# "Does the policy cover leaks from dishwasher in the building section?"
+# "what are limits of the High risk property in the policy?"
+# Is damage from low flying aircraft covered by the policy?
+# Does the policy cover plants in the garden in the content section?
 
 # COMMAND ----------
 
-question =   "what are the regions covered by the policy"
+question =   " Does the policy cover leaks from dishwasher in the building section?"
 
 # COMMAND ----------
 

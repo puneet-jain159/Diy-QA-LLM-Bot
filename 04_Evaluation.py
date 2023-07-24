@@ -113,6 +113,3 @@ results['same_as_answer'].sum() / len(results)
 # MAGIC | tiktoken | Fast BPE tokeniser for use with OpenAI's models | MIT  |   https://pypi.org/project/tiktoken/ |
 # MAGIC | faiss-cpu | Library for efficient similarity search and clustering of dense vectors | MIT  |   https://pypi.org/project/faiss-cpu/ |
 # MAGIC | openai | Building applications with LLMs through composability | MIT  |   https://pypi.org/project/openai/ |
-
-# COMMAND ----------
-

@@ -26,6 +26,10 @@
 
 # COMMAND ----------
 
+f"19\nRainbow Home insuranceThe buildings are insured against \nloss or damage caused byIn addition to items listed on \npages 16-18 we will not pay for:\n• The excess shown on your policy \nschedule  under paragraphs 1 to 15 \nand A to E of this section.\n1. Fire, smoke, explosion, lightning or \nearthquake.• Loss or damage caused by tobacco \nburns, scorching, melting, warping or \nother forms of heat distortion unless \naccompanied by flames.\n2. Riot, civil commotion, strikes or \nlabour disturbances• Loss or damage occurring where you \nhave:\ni) participated in, assisted, \nencouraged or facilitated the riot \nor spread of the riot.\nii) contributed, directly or indirectly, \nto any damage, destruction or \ntheft of property during the riot.\niii) committed a criminal offence \nrelating to the riot.\n3. Malicious acts or vandalism. • Loss or damage when your home is \nunoccupied  for more than 60 days \nin a row.\n• Loss or damage caused by you , your \ndomestic employees, lodgers, paying \nguests or tenants.\n4a. Storm. • Loss or damage to fences, gates and \nhedges.\n• Loss or damage caused by \nunderground water.SECTION 1 BUILDINGS\nPlease note that this section only applies if it is shown on your policy schedule . \nPART 1 – BUILDINGS.\nWe will pay up to the sum insured shown on your policy schedule  unless we \nspecify otherwise."
+
+# COMMAND ----------
+
 # MAGIC %run "./util/notebook-config"
 
 # COMMAND ----------
