@@ -15,7 +15,7 @@
 # COMMAND ----------
 
 # DBTITLE 1,Install Required Libraries
-# MAGIC %run ./util/install-llm-libraries
+# MAGIC %run "./util/install-prep-libraries"
 
 # COMMAND ----------
 
@@ -40,7 +40,13 @@ from langchain.prompts import PromptTemplate
 from langchain.base_language import BaseLanguageModel
 
 from langchain import LLMChain
-from util.mptbot import HuggingFacePipelineLocal
+from util.mptbot import HuggingFacePipelineLocal,TGILocalPipeline
+
+# COMMAND ----------
+
+import os
+# Optional, but helpful to avoid re-downloading the weights repeatedly. Set to any `/dbfs` path.
+os.environ['HUGGINGFACE_HUB_CACHE'] = '/local_disk0/hf/'
 
 # COMMAND ----------
 
@@ -63,7 +69,7 @@ notebook_login()
 # COMMAND ----------
 
 # DBTITLE 1,Specify Question
-question =   "what are limits of the High risk property in the policy?"
+question =   "Is damage caused by collision with aircraft covered in the contents section?"
 
 # COMMAND ----------
 
@@ -78,7 +84,10 @@ question =   "what are limits of the High risk property in the policy?"
 if config['model_id'] == 'openai' :
   embeddings = OpenAIEmbeddings(model=config['embedding_model'])
 else:
-   embeddings = HuggingFaceInstructEmbeddings(model_name=config['embedding_model'])
+  if "instructor" in config['embedding_model']:
+    embeddings = HuggingFaceInstructEmbeddings(model_name= config['embedding_model'])
+  else:
+    embeddings = HuggingFaceEmbeddings(model_name= config['embedding_model'])
 
 # load the documents in the vector store
 vector_store = FAISS.load_local(embeddings=embeddings, folder_path=config['vector_store_path'])
@@ -124,9 +133,8 @@ else:
   chat_prompt = ChatPromptTemplate.from_messages([system_message_prompt])
 
   # define model to respond to prompt
-  llm = HuggingFacePipelineLocal.from_model_id(
+  llm = TGILocalPipeline.from_model_id(
     model_id=config['model_id'],
-    task="text-generation",
     model_kwargs =config['model_kwargs'],
     pipeline_kwargs= config['pipeline_kwargs'])
 
@@ -145,11 +153,11 @@ qa_chain = LLMChain(
 
 # DBTITLE 1,Generate a Response
 # for each provided document
-doc = docs[0]
+doc = docs[1]
 
 # get document text
 text = doc.page_content
-
+print(text)
 # generate a response
 output = qa_chain.generate([{'context': text, 'question': question}])
 
@@ -191,7 +199,7 @@ class QABot():
 
     badanswer_phrases = [ # phrases that indicate model produced non-answer
       "no information", "no context", "don't know", "no clear answer", "sorry","not mentioned","do not know","I don't see any information",
-      "no answer", "no mention", "context does not provide", "no helpful answer", "not specified","not know the answer", 
+      "no answer", "no mention","not mentioned","not mention", "context does not provide", "no helpful answer", "not specified","not know the answer", 
       "no helpful", "no relevant", "no question", "not clear","not explicitly mentioned",
       "don't have enough information", " does not have the relevant information", "does not seem to be directly related"
       ]
@@ -300,7 +308,7 @@ class QABot():
 
 # COMMAND ----------
 
-question =   " Does the policy cover leaks from dishwasher in the building section?"
+question =   "Does the policy cover leaks from dishwasher in the building section?"
 
 # COMMAND ----------
 

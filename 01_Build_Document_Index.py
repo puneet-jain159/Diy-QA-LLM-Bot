@@ -55,12 +55,17 @@ from azure.ai.formrecognizer import DocumentAnalysisClient
 from azure.core.credentials import AzureKeyCredential
 
 endpoint = "https://pj-form.cognitiveservices.azure.com/"
-key  = AzureKeyCredential("XXXXXXXXXX")
+key  = AzureKeyCredential("xxxxxxxxxxx")
+
+# COMMAND ----------
+
+headers = {}
 
 # COMMAND ----------
 
 def generate_doc(result):
   doc = ''
+  headers = {}
   t = []
   for table_idx, table in enumerate(result.tables):
       for cell in table.cells:
@@ -73,21 +78,26 @@ def generate_doc(result):
               doc += paragraph.content +'\n'
 
   for table_idx, table in enumerate(result.tables):
+      doc += "Below is a Table:" + "\n"
       for cell in table.cells:
           cell.content = cell.content.replace(":selected:","").replace(":unselected:","")
-          if cell.kind:
-              header = cell.kind
+          if cell.kind != 'content':
+              if cell.kind == 'columnHeader':
+                headers[cell.column_index] = cell.content
 
-              doc += f"Cell[{cell.row_index}][{cell.column_index}] as {header} has text '{cell.content}'" + "\n" 
+              doc += f"Cell[{cell.row_index}][{cell.column_index}] as {cell.kind} has text '{cell.content}'" + "\n" 
           else:
-              header = None
-              doc += f"Cell[{cell.row_index}][{cell.column_index}] has text '{cell.content}'" +"\n"
+              if cell.column_index not in headers:
+                doc += f"Cell[{cell.row_index}][{cell.column_index}] has text '{cell.content}'" +"\n"
+              else:
+                doc += f"Cell[{cell.row_index}][{cell.column_index}] with column heading '{headers[cell.column_index]}' has text '{cell.content}'" +"\n"
   return doc
 
 # COMMAND ----------
 
 rootdir = "/dbfs/FileStore/howden_azure_form_poc"
 filees = 'document_page21.pdf'
+document_analysis_client = DocumentAnalysisClient(endpoint, key)
 
 with open(os.path.join(rootdir,filees), "rb") as fd:
   document = fd.read()
@@ -113,7 +123,7 @@ for subdir, dirs, files in os.walk(rootdir):
 
       poller = document_analysis_client.begin_analyze_document("prebuilt-layout", document)
       result = poller.result()
-
+      print(generate_doc(result))
       Doc_collection.append({
         "full_text" : generate_doc(result),
         "source" : os.path.join(rootdir,file)
@@ -128,7 +138,6 @@ from langchain.document_loaders import PyPDFDirectoryLoader
 
 # f = open("/dbfs/FileStore/howden_poc_with_txt/Rainbow_Home___Policy_Wording_zam.txt", "r")
 # data =f.read()
-
 # chunk = data.split("                       Rainbow Home insurance")
 import pandas as pd
 df = pd.DataFrame(Doc_collection)
@@ -307,7 +316,10 @@ metadata_inputs = (
 if config['model_id'] == 'openai' :
   embeddings = OpenAIEmbeddings(model=config['openai_embedding_model'])
 else:
-  embeddings = HuggingFaceInstructEmbeddings(model_name= config['embedding_model'])
+  if "instructor" in config['embedding_model']:
+    embeddings = HuggingFaceInstructEmbeddings(model_name= config['embedding_model'])
+  else:
+    embeddings = HuggingFaceEmbeddings(model_name= config['embedding_model'])
 
 # instantiate vector store object
 vector_store = FAISS.from_texts(

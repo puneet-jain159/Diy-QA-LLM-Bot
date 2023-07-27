@@ -15,7 +15,7 @@ config['loc'] = "/dbfs/FileStore/howden_poc"
 
 # Define the model we would like to use
 # config['model_id'] = 'openai'
-config['model_id'] = 'meta-llama/Llama-2-13b-chat-hf'
+config['model_id'] = 'meta-llama/Llama-2-70b-chat-hf'
 # config['model_id'] = 'mosaicml/mpt-30b-chat'
 username = dbutils.notebook.entry_point.getDbutils().notebook().getContext().tags().apply('user')
 
@@ -36,7 +36,7 @@ _ = spark.catalog.setCurrentDatabase(config['database_name'])
 import os
 
 if config['model_id'] == 'openai':
-  os.environ['OPENAI_API_KEY'] = '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'
+  os.environ['OPENAI_API_KEY'] = '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'
 
 # COMMAND ----------
 
@@ -78,7 +78,22 @@ elif config['model_id'] == 'mosaicml/mpt-30b-chat' :
 
 elif config['model_id'] == 'meta-llama/Llama-2-13b-chat-hf' :
   # Setup prompt template ####
-  config['embedding_model'] = 'hkunlp/instructor-xl'
+  config['embedding_model'] = 'intfloat/e5-large-v2'
+  config['model_kwargs'] = {}
+  
+  # Model parameters
+  config['pipeline_kwargs']={"temperature":  0.10,
+                            "max_new_tokens": 256}
+  
+  config['template'] = """<s>[INST] <<SYS>>
+    You are a assistant built to answer policy related questions based on the context provided, the context is a document and use no other information.
+    <</SYS>> Given the context: {context}. Answer the question {question} \n
+     If the context does not provide enough relevant information to determine the answer, just say I don't know. If the context is irrelevant to the question, just say I don't know. If you did not find a good answer from the context, just say I don't know. If the query doesn't form a complete question, just say I don't know.
+    [/INST]""".strip()
+
+elif config['model_id'] == 'meta-llama/Llama-2-70b-chat-hf' :
+  # Setup prompt template ####
+  config['embedding_model'] = 'intfloat/e5-large-v2'
   
   config['model_kwargs'] = {"load_in_8bit" : True}
 
@@ -87,9 +102,11 @@ elif config['model_id'] == 'meta-llama/Llama-2-13b-chat-hf' :
                             "max_new_tokens": 256}
   
   config['template'] = """<s>[INST] <<SYS>>
-    You are a helpful, respectful and honest assistant.you are good at helping to answer a question based on the context provided, the context is a document. If the context does not provide enough relevant information to determine the answer, just say I don't know. If the context is irrelevant to the question, just say I don't know. If you did not find a good answer from the context, just say I don't know. If the query doesn't form a complete question, just say I don't know. If there is a good answer from the context, try to summarize the context to answer the question.
-    <</SYS>> Given the context: {context}. Answer the question {question}
+    You are a assistant built to answer policy related questions based on the context provided, the context is a document and use no other information.
+    <</SYS>> Given the context: {context}. Answer the question {question} \n
+     If the context does not provide enough relevant information to determine the answer, just say I don't know. If the context is irrelevant to the question, just say I don't know. If you did not find a good answer from the context, just say I don't know. If the query doesn't form a complete question, just say I don't know.
     [/INST]""".strip()
+
 
 
 
