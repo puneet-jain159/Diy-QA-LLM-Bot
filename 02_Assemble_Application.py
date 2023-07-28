@@ -69,7 +69,7 @@ notebook_login()
 # COMMAND ----------
 
 # DBTITLE 1,Specify Question
-question =   "Is damage caused by collision with aircraft covered in the contents section?"
+question =   "Is damage caused by collision with vehicles covered in the buildings section?"
 
 # COMMAND ----------
 
@@ -153,7 +153,7 @@ qa_chain = LLMChain(
 
 # DBTITLE 1,Generate a Response
 # for each provided document
-doc = docs[1]
+doc = docs[3]
 
 # get document text
 text = doc.page_content

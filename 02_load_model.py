@@ -29,7 +29,7 @@
 # MAGIC
 # MAGIC # install text-generation-inference
 # MAGIC rm -rf  /local_disk0/tmp/text-generation-inference
-# MAGIC cd /local_disk0/tmp && git clone https://github.com/huggingface/text-generation-inference.git --branch v0.9.3
+# MAGIC cd /local_disk0/tmp && git clone https://github.com/huggingface/text-generation-inference.git 
 # MAGIC cd /local_disk0/tmp/text-generation-inference && make install
 # MAGIC
 # MAGIC # install flash-attention
@@ -42,7 +42,7 @@
 # COMMAND ----------
 
 import os 
-os.environ['HUGGING_FACE_HUB_TOKEN'] = 'xxxxxxxx'
+os.environ['HUGGING_FACE_HUB_TOKEN'] = 'xxxxxxxxxx'
 os.environ['HUGGINGFACE_HUB_CACHE'] ='/local_disk0/tmp/'
 os.environ['CUDA_MEMORY_FRACTION'] = ".85"
 os.environ['CUDA_VISIBLE_DEVICES'] = "0,1,2,3"
@@ -57,11 +57,23 @@ os.environ['CUDA_VISIBLE_DEVICES'] = "0,1,2,3"
 os.environ['model_id'] = config['model_id']
 if "load_in_8bit" in config['model_kwargs']:
   os.environ['quantize'] = "bitsandbytes"
+else:
+  del os.environ['quantize']
 
 
 # COMMAND ----------
 
-! echo $quantize
+from dbruntime.databricks_repl_context import get_context
+ctx = get_context()
+
+port = "8880"
+driver_proxy_api = f"https://{ctx.browserHostName}/driver-proxy-api/o/0/{ctx.clusterId}/{port}"
+
+print(f"""
+driver_proxy_api = '{driver_proxy_api}'
+cluster_id = '{ctx.clusterId}'
+port = {port}
+""")
 
 # COMMAND ----------
 
@@ -77,7 +89,3 @@ if "load_in_8bit" in config['model_kwargs']:
 # COMMAND ----------
 
 ! kill -9  $(ps aux | grep 'text-generation' | awk '{print $2}')
-
-# COMMAND ----------
-
-

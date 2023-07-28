@@ -138,7 +138,7 @@ with gr.Blocks() as demo:
             raw_text = gr.Textbox(label="Document from which the answer was generated",scale=50)
             raw_source = gr.Textbox(label="Source of the Document",scale=1)
     with gr.Row():
-      examples = gr.Examples(examples=["what is the definition of Unoccupied specified in the DEFINITIONS section?", "what does the policy say about leaks from dishwaher for building section?","what are limits of the High risk property in the policy?","Is damage from low flying aircraft covered by the policy?"],
+      examples = gr.Examples(examples=["what is the definition of Unoccupied specified in the DEFINITIONS section?", "what does the policy say about leaks from dishwasher for building section?","what are limits of the High risk property in the policy?","Is damage caused by collision with vehicles covered in the buildings section??"],
                         inputs=[msg])
     msg.submit(respond, [msg, chatbot], [msg, chatbot,raw_text,raw_source])
 
