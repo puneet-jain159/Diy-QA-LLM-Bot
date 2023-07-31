@@ -38,7 +38,10 @@ _ = spark.catalog.setCurrentDatabase(config['database_name'])
 import os
 
 if config['model_id'] == 'openai':
-  os.environ['OPENAI_API_KEY'] = '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'
+  os.environ['OPENAI_API_KEY'] = 'xxxxxxxx'
+
+if "LLAMA-2" in config['model_id']:
+  config['HUGGING_FACE_HUB_TOKEN'] = 'xxxxxxxx'
 
 # COMMAND ----------
 
@@ -49,8 +52,8 @@ config['vector_store_path'] = f"/dbfs/{username}/qabot/vector_store/{config['mod
 # COMMAND ----------
 
 if config['use_azure_formrecognizer'] == True:
-  config['formendpoint'] = 'https://howden-test.cognitiveservices.azure.com/'
-  config['formkey'] = 'bdbca92002404c2588c729a8a33c6e10'
+  config['formendpoint'] = 'xxxxxx'
+  config['formkey'] = 'xxxxxxx'
 
 # COMMAND ----------
 
@@ -68,8 +71,8 @@ if config['model_id'] == "openai":
   config['embedding_model'] = 'text-embedding-ada-002'
   config['openai_chat_model'] = "gpt-3.5-turbo"
   # Setup prompt template ####
-  config['system_message_template'] = """You are a helpful assistant built by Databricks, you are good at helping to answer a question based on the context provided, the context is a document. If the context does not provide enough relevant information to determine the answer, just say I don't know. If the context is irrelevant to the question, just say I don't know. If you did not find a good answer from the context, just say I don't know. If the query doesn't form a complete question, just say I don't know. If there is a good answer from the context, try to summarize the context to answer the question."""
-  config['human_message_template'] = """Given the context: {context}. Answer the question {question}."""
+  config['template'] = """You are a helpful assistant built by Databricks, you are good at helping to answer a question based on the context provided, the context is a document. If the context does not provide enough relevant information to determine the answer, just say I don't know. If the context is irrelevant to the question, just say I don't know. If you did not find a good answer from the context, just say I don't know. If the query doesn't form a complete question, just say I don't know. If there is a good answer from the context, try to summarize the context to answer the question.
+  Given the context: {context}. Answer the question {question}."""
   config['temperature'] = 0.15
 
 elif config['model_id'] == 'mosaicml/mpt-30b-chat' :
@@ -77,8 +80,7 @@ elif config['model_id'] == 'mosaicml/mpt-30b-chat' :
   config['embedding_model'] = 'intfloat/e5-large-v2'
 
   # Model parameters
-  config['model_kwargs'] = {"load_in_8bit" : True,
-                            "bnb_8bit_compute_dtype":torch.bfloat16}
+  config['model_kwargs'] = {}
   config['pipeline_kwargs']={"temperature":  0.10,
                             "max_new_tokens": 256}
   
@@ -123,10 +125,3 @@ elif config['model_id'] == 'meta-llama/Llama-2-70b-chat-hf' :
 
 # DBTITLE 1,Set evaluation config
 # config["eval_dataset_path"]= "./data/eval_data.tsv"
-
-# COMMAND ----------
-
-# DBTITLE 1,Set deployment configs
-config['openai_key_secret_scope'] = "solution-accelerator-cicd" # See `./RUNME` notebook for secret scope instruction - make sure it is consistent with the secret scope name you actually use 
-config['openai_key_secret_key'] = "openai_api" # See `./RUNME` notebook for secret scope instruction - make sure it is consistent with the secret scope key name you actually use
-config['serving_endpoint_name'] = "llm-qabot-endpoint"

@@ -1,4 +1,20 @@
 # Databricks notebook source
+# MAGIC %md 
+# MAGIC ### This is the notebook to run the Open LLM's as an Web Service
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC **This notebook is not required if you want to run the OpenAI model**
+
+# COMMAND ----------
+
+if config['model_id'] == "openai":
+  raise "Notebook note required , Use this notebook to run on when using open LLM. change the config"
+
+# COMMAND ----------
+
 # MAGIC %pip install torch==2.0.1
 
 # COMMAND ----------
@@ -41,6 +57,14 @@
 
 # COMMAND ----------
 
+ dbutils.library.restartPython() 
+
+# COMMAND ----------
+
+# MAGIC %run "./util/notebook-config"
+
+# COMMAND ----------
+
 import os 
 nodeid = spark.conf.get('spark.databricks.driverNodeTypeId')
 if "A100" in nodeid:
@@ -51,23 +75,16 @@ else:
   os.environ['CUDA_VISIBLE_DEVICES'] = "0,1,2,3"
 
 
-os.environ['HUGGING_FACE_HUB_TOKEN'] = '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'
+os.environ['HUGGING_FACE_HUB_TOKEN'] = config['HUGGING_FACE_HUB_TOKEN']
 os.environ['HUGGINGFACE_HUB_CACHE'] ='/local_disk0/tmp/'
 os.environ['CUDA_MEMORY_FRACTION'] = "1"
 
-
-# COMMAND ----------
-
-# MAGIC %run "./util/notebook-config"
-
-# COMMAND ----------
-
-# get model variablex
+# get model variables
 os.environ['model_id'] = config['model_id']
 if "load_in_8bit" in config['model_kwargs']:
   os.environ['quantize'] = "bitsandbytes"
-else:
-  os.environ['quantize'] = "none"
+if config['model_id'] != 'meta-llama/Llama-2-70b-chat-hf':
+  os.environ['CUDA_MEMORY_FRACTION'] = ".8"
 
 
 # COMMAND ----------

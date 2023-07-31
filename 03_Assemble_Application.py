@@ -56,7 +56,7 @@ from util.mptbot import HuggingFacePipelineLocal,TGILocalPipeline
 # COMMAND ----------
 
 # DBTITLE 1,Specify Question
-question =   "What is the Rental vehicle age covered by the policy?"
+question =   "what is the duration for the policy bought by the policy holder mentioned in the Policy Schedule / Validation Certificate?"
 
 # COMMAND ----------
 
@@ -103,26 +103,17 @@ for doc in docs:
 # COMMAND ----------
 
 # DBTITLE 1,Define Chain to Generate Responses
+# define system-level instructions
+system_message_prompt = SystemMessagePromptTemplate.from_template(config['template'])
+chat_prompt = ChatPromptTemplate.from_messages([system_message_prompt])
+
+
 if config['model_id']  == 'openai':
-
-  # define system-level instructions
-  system_message_prompt = SystemMessagePromptTemplate.from_template(config['system_message_template'])
-
-  # define human-driven instructions
-  human_message_prompt = HumanMessagePromptTemplate.from_template(config['human_message_template'])
-
-  # combine instructions into a single prompt
-  chat_prompt = ChatPromptTemplate.from_messages([system_message_prompt, human_message_prompt])
 
   # define model to respond to prompt
   llm = ChatOpenAI(model_name=config['openai_chat_model'], temperature=config['temperature'])
 
 else:
-
-  # define system-level instructions
-  system_message_prompt = SystemMessagePromptTemplate.from_template(config['template'])
-  chat_prompt = ChatPromptTemplate.from_messages([system_message_prompt])
-
   # define model to respond to prompt
   llm = TGILocalPipeline.from_model_id(
     model_id=config['model_id'],
@@ -177,10 +168,6 @@ class QABot():
     self.retriever = retriever
     self.prompt = prompt
     self.qa_chain = LLMChain(llm = self.llm, prompt=prompt)
-    self.abbreviations = { # known abbreviations we want to replace
-      "LSEG": "London Stock Exchange Group"
-      } 
-
 
   def _is_good_answer(self, answer):
 
@@ -191,8 +178,8 @@ class QABot():
     badanswer_phrases = [ # phrases that indicate model produced non-answer
       "no information", "no context", "don't know", "no clear answer", "sorry","not mentioned","do not know","i don't see any information",
       "no answer", "no mention","not mentioned","not mention", "context does not provide", "no helpful answer", "not specified","not know the answer", 
-      "no helpful", "no relevant", "no question", "not clear","not explicitly mentioned","provide me with the actual context document",
-      "i'm ready to assist",
+      "no helpful", "no relevant", "no question", "not clear","not explicitly","provide me with the actual context document",
+      "i'm ready to assist","I can answer the following questions"
       "don't have enough information", " does not have the relevant information", "does not seem to be directly related","cannot determine"
       ]
     if answer is None: # bad answer if answer is none
@@ -246,10 +233,6 @@ class QABot():
     # default result
     result = {'answer':None, 'source':None, 'output_metadata':None}
 
-    # remove common abbreviations from question
-    for abbreviation, full_text in self.abbreviations.items():
-      pattern = re.compile(fr'\b({abbreviation}|{abbreviation.lower()})\b', re.IGNORECASE)
-      question = pattern.sub(f"{abbreviation} ({full_text})", question)
 
     # get relevant documents
     docs = self.retriever.get_relevant_documents(question)
@@ -301,7 +284,7 @@ class QABot():
 
 # COMMAND ----------
 
-question =  "What is the maximum Age of a Vehicle the insurance covers?"
+question =  "what is the duration for the policy mentioned in the policy schedule / Validation schedule"
 
 # COMMAND ----------
 
@@ -351,7 +334,7 @@ except:
           "question": [
               "what is limit of the misfueling cost covered in the policy?",
               "what happens if I lose my keys?",
-              "what is the vehicle age covered by the policy?",
+              "What is the maximum Age of a Vehicle the insurance covers?",
               "what are the regions covered by the policy?",
               "what is the duration for the policy bought by the policy holder mentioned in the policy schedule / Validation schedule?"
           ]
@@ -384,75 +367,27 @@ with mlflow.start_run(run_name = config['model_id']):
     # mlflow.log_param("prompt template",config['template'])
 
   # log pipeline_params
-    if config['pipeline_kwargs']:
+    if "pipeline_kwargs" in config:
       mlflow.log_params(config['pipeline_kwargs'])
   
-    if config['model_kwargs'] != {}:
+    if "model_kwargs" in config:
       mlflow.log_params(config['model_kwargs'])
 
 
     questions = spark.read.table("eval_questions").toPandas()
     outputs = model.predict(context = None,inputs =questions)
 
+
+
     # Evaluate the model on some example questions
     table_dict = {
     "questions": list(questions['question']),
     "outputs": [output['answer']for output in outputs],
     "source": [output['source']for output in outputs],
-    "template": [config['template']for output in outputs]
+    "template": [config['template'] for output in outputs]
     }
     mlflow.log_table(table_dict,"eval.json")
-    # mlflow.evaluate(
-    #     model=logged_model.model_uri,
-    #     model_type="question-answering",
-    #     data=questions,
-    # )
     mlflow.end_run()
-
-# COMMAND ----------
-
-list(questions['question'])
-# questions = pd.DataFrame(
-#     {
-#         "question": [
-#             "what is limit of the misfueling cost covered in the policy?",
-#             "what happens if I lose my keys?",
-#         ]
-#     }
-# )
-# outputs = model.predict(context = None,inputs =questions)
-
-# COMMAND ----------
-
-# MAGIC %md If you are new to MLflow, you may be wondering what logging is doing for us.  If you navigate to the experiment associated with this notebook - look for the flask icon in the right-hand navigation of your Databricks environment to access the experiments - you can click on the latest experiment to see details about what was recorded with the *log_model* call. If you expand the model artifacts, you should see a *python_model.pkl* file that represents the pickled MLflowQABot model instantiated before.  It's this model that we retrieve when we (later) load our model into this or another environment:
-# MAGIC </p>
-# MAGIC
-# MAGIC <img src="https://brysmiwasb.blob.core.windows.net/demos/images/bot_mlflow_log_model.PNG" width=1000>
-
-# COMMAND ----------
-
-# MAGIC %md The MLflow model registry provides mechanisms for us to manage our registered models as they move through a CI/CD workflow.  If we want to just push a model straight to production status (which is fine for a demo but not recommended in real-world scenarios), we can do this programmatically as follows:
-
-# COMMAND ----------
-
-# DBTITLE 1,Elevate Model to Production Status
-# connect to mlflow 
-client = mlflow.MlflowClient()
-
-# identify latest model version
-latest_version = client.get_latest_versions(config['registered_model_name'], stages=['None'])[0].version
-
-# move model into production
-client.transition_model_version_stage(
-    name=config['registered_model_name'],
-    version=latest_version,
-    stage='Production',
-    archive_existing_versions=True
-)
-
-# COMMAND ----------
-
-# MAGIC %md We can then retrieve the model from the registery and submit a few questions to verify the response:
 
 # COMMAND ----------
 

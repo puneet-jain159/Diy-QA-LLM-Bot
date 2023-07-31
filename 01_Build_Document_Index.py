@@ -207,7 +207,7 @@ metadata_inputs = (
 # identify embedding model that will generate embedding vectors
 
 if config['model_id'] == 'openai' :
-  embeddings = OpenAIEmbeddings(model=config['openai_embedding_model'])
+  embeddings = OpenAIEmbeddings(model=config['embedding_model'])
 else:
   if "instructor" in config['embedding_model']:
     embeddings = HuggingFaceInstructEmbeddings(model_name= config['embedding_model'])

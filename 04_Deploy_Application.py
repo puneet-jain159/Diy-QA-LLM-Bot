@@ -4,24 +4,12 @@
 
 # COMMAND ----------
 
-from huggingface_hub import notebook_login
-
-# Login to Huggingface to get access to the model
-notebook_login()
-
-# COMMAND ----------
-
 # MAGIC %run "./util/install-prep-libraries"
 
 # COMMAND ----------
 
 # DBTITLE 1,Get Config Settings
 # MAGIC %run "./util/notebook-config"
-
-# COMMAND ----------
-
-# DBTITLE 1,Optional : Load Ray Dashboard to show cluster Utilisation
-# MAGIC %run "./util/install_ray"
 
 # COMMAND ----------
 
@@ -45,7 +33,7 @@ from langchain import LLMChain
 
 # COMMAND ----------
 
-n_documents = 5
+n_documents = 10
 
 # COMMAND ----------
 
@@ -66,8 +54,7 @@ def load_vector_db(embeddings_model = 'intfloat/e5-large-v2',
     if "instructor" in config['embedding_model']:
       embeddings = HuggingFaceInstructEmbeddings(model_name= config['embedding_model'])
     else:
-      embeddings = HuggingFaceEmbeddings(model_name= config['embedding_model'],
-                                         model_kwargs = {'device': 'cuda:2'})
+      embeddings = HuggingFaceEmbeddings(model_name= config['embedding_model'])
   vector_store = FAISS.load_local(embeddings=embeddings, folder_path=config['vector_store_path'])
   retriever = vector_store.as_retriever(search_kwargs={'k': n_documents}) # configure retrieval mechanism
   return retriever
@@ -82,6 +69,10 @@ retriever = load_vector_db(config['embedding_model'],
 
 
 # COMMAND ----------
+
+# define system-level instructions
+system_message_prompt = SystemMessagePromptTemplate.from_template(config['template'])
+chat_prompt = ChatPromptTemplate.from_messages([system_message_prompt])
 
 if config['model_id']  == 'openai':
 
@@ -98,12 +89,6 @@ if config['model_id']  == 'openai':
   llm = ChatOpenAI(model_name=config['openai_chat_model'], temperature=config['temperature'])
 
 else:
-
-  # define system-level instructions
-  system_message_prompt = SystemMessagePromptTemplate.from_template(config['template'])
-  chat_prompt = ChatPromptTemplate.from_messages([system_message_prompt])
-
-  # define model to respond to prompt
   # define model to respond to prompt
   llm = TGILocalPipeline.from_model_id(
     model_id=config['model_id'],
@@ -138,7 +123,7 @@ with gr.Blocks() as demo:
             raw_text = gr.Textbox(label="Document from which the answer was generated",scale=50)
             raw_source = gr.Textbox(label="Source of the Document",scale=1)
     with gr.Row():
-      examples = gr.Examples(examples=["what is the definition of Unoccupied specified in the DEFINITIONS section?", "what does the policy say about leaks from dishwasher for building section?","what are limits of the High risk property in the policy?","Is damage caused by collision with vehicles covered in the buildings section??"],
+      examples = gr.Examples(examples=["what is limit of the misfueling cost covered in the policy?", "what happens if I lose my keys?","what is the duration for the policy bought by the policy holder mentioned in the policy schedule / Validation schedule","What is the maximum Age of a Vehicle the insurance covers?"],
                         inputs=[msg])
     msg.submit(respond, [msg, chatbot], [msg, chatbot,raw_text,raw_source])
 
