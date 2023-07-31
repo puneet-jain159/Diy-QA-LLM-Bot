@@ -161,7 +161,3 @@ dbx_app.run()
 
 # kill the gradio process
 ! kill -9  $(ps aux | grep 'databricks/python_shell/scripts/db_ipykernel_launcher.py' | awk '{print $2}')
-
-# COMMAND ----------
-
-

@@ -8,16 +8,18 @@ if 'config' not in locals():
 
 # COMMAND ----------
 
-# DBTITLE 1,Location of the Documents
-config['loc'] = "/dbfs/FileStore/howden_poc"
+# DBTITLE 1,Use Case
+config['use-case']="insurance_qa_bot"
 
 # COMMAND ----------
 
 # Define the model we would like to use
 # config['model_id'] = 'openai'
-config['model_id'] = 'meta-llama/Llama-2-70b-chat-hf'
+# config['model_id'] = 'meta-llama/Llama-2-70b-chat-hf'
+config['model_id'] = 'meta-llama/Llama-2-13b-chat-hf'
 # config['model_id'] = 'mosaicml/mpt-30b-chat'
 username = dbutils.notebook.entry_point.getDbutils().notebook().getContext().tags().apply('user')
+config['use_azure_formrecognizer'] = True
 
 # COMMAND ----------
 
@@ -41,14 +43,20 @@ if config['model_id'] == 'openai':
 # COMMAND ----------
 
 # DBTITLE 1,Set document path
-config['kb_documents_path'] = "s3://db-gtm-industry-solutions/data/rcg/diy_llm_qa_bot/"
-config['vector_store_path'] = f"/dbfs/{username}/qabot/vector_store/{config['model_id']}/howden_poc" # /dbfs/... is a local file system representation
+config['loc'] = f"/dbfs/FileStore/insurance_policy_doc/"
+config['vector_store_path'] = f"/dbfs/{username}/qabot/vector_store/{config['model_id']}/{config['use-case']}" # /dbfs/... is a local file system representation
+
+# COMMAND ----------
+
+if config['use_azure_formrecognizer'] == True:
+  config['formendpoint'] = 'https://howden-test.cognitiveservices.azure.com/'
+  config['formkey'] = 'bdbca92002404c2588c729a8a33c6e10'
 
 # COMMAND ----------
 
 # DBTITLE 1,mlflow settings
 import mlflow
-config['registered_model_name'] = 'databricks_llm_qabot_solution_accelerator'
+config['registered_model_name'] = f"{config['use-case']}"
 config['model_uri'] = f"models:/{config['registered_model_name']}/production"
 _ = mlflow.set_experiment('/Users/{}/{}'.format(username, config['registered_model_name']))
 
@@ -88,7 +96,7 @@ elif config['model_id'] == 'meta-llama/Llama-2-13b-chat-hf' :
   config['template'] = """<s>[INST] <<SYS>>
     You are a assistant built to answer policy related questions based on the context provided, the context is a document and use no other information.
     <</SYS>> Given the context: {context}. Answer the question {question} \n
-     If the context does not provide enough relevant information to determine the answer, just say I don't know. If the context is irrelevant to the question, just say I don't know. If you did not find a good answer from the context, just say I don't know. If the query doesn't form a complete question, just say I don't know.
+     If the context does not provide enough relevant information to determine the answer, just say I don't know. If the context is irrelevant to the question, just say I don't know. If you did not find a good answer from the context, just say I don't know. If the query doesn't form a complete question, just say I don't know. only answer the question asked
     [/INST]""".strip()
 
 elif config['model_id'] == 'meta-llama/Llama-2-70b-chat-hf' :
@@ -104,7 +112,7 @@ elif config['model_id'] == 'meta-llama/Llama-2-70b-chat-hf' :
   config['template'] = """<s>[INST] <<SYS>>
     You are a assistant built to answer policy related questions based on the context provided, the context is a document and use no other information.
     <</SYS>> Given the context: {context}. Answer the question {question} \n
-     If the context does not provide enough relevant information to determine the answer, just say I don't know. If the context is irrelevant to the question, just say I don't know. If you did not find a good answer from the context, just say I don't know. If the query doesn't form a complete question, just say I don't know.
+     If the context does not provide enough relevant information to determine the answer, just say I don't know. If the context is irrelevant to the question, just say I don't know. If the query doesn't form a complete question, just say I don't know.
     [/INST]""".strip()
 
 
@@ -114,7 +122,7 @@ elif config['model_id'] == 'meta-llama/Llama-2-70b-chat-hf' :
 # COMMAND ----------
 
 # DBTITLE 1,Set evaluation config
-config["eval_dataset_path"]= "./data/eval_data.tsv"
+# config["eval_dataset_path"]= "./data/eval_data.tsv"
 
 # COMMAND ----------
 

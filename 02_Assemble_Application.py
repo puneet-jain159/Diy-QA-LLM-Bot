@@ -1,5 +1,5 @@
 # Databricks notebook source
-# MAGIC %md The purpose of this notebook is to define and persist the model to be used by the QA Bot accelerator.  This notebook is available at https://github.com/databricks-industry-solutions/diy-llm-qa-bot.
+# MAGIC %md The purpose of this notebook is to define and persist the model to be used by the QA Bot accelerator.  This notebook is inspired from https://github.com/databricks-industry-solutions/diy-llm-qa-bot.
 
 # COMMAND ----------
 
@@ -44,21 +44,8 @@ from util.mptbot import HuggingFacePipelineLocal,TGILocalPipeline
 
 # COMMAND ----------
 
-import os
-# Optional, but helpful to avoid re-downloading the weights repeatedly. Set to any `/dbfs` path.
-os.environ['HUGGINGFACE_HUB_CACHE'] = '/local_disk0/hf/'
-
-# COMMAND ----------
-
 # DBTITLE 1,Get Config Settings
 # MAGIC %run "./util/notebook-config"
-
-# COMMAND ----------
-
-from huggingface_hub import notebook_login
-
-# Login to Huggingface to get access to the model
-notebook_login()
 
 # COMMAND ----------
 
@@ -69,7 +56,7 @@ notebook_login()
 # COMMAND ----------
 
 # DBTITLE 1,Specify Question
-question =   "Is damage caused by collision with vehicles covered in the buildings section?"
+question =   "What is the Rental vehicle age covered by the policy?"
 
 # COMMAND ----------
 
@@ -81,13 +68,17 @@ question =   "Is damage caused by collision with vehicles covered in the buildin
 
 # DBTITLE 1,Retrieve Relevant Documents
 # open vector store to access embeddings
-if config['model_id'] == 'openai' :
-  embeddings = OpenAIEmbeddings(model=config['embedding_model'])
-else:
-  if "instructor" in config['embedding_model']:
-    embeddings = HuggingFaceInstructEmbeddings(model_name= config['embedding_model'])
+try:
+  embeddings
+except:
+  print("*** Load Embedding Model ***")
+  if config['model_id'] == 'openai' :
+    embeddings = OpenAIEmbeddings(model=config['embedding_model'])
   else:
-    embeddings = HuggingFaceEmbeddings(model_name= config['embedding_model'])
+    if "instructor" in config['embedding_model']:
+      embeddings = HuggingFaceInstructEmbeddings(model_name= config['embedding_model'])
+    else:
+      embeddings = HuggingFaceEmbeddings(model_name= config['embedding_model'])
 
 # load the documents in the vector store
 vector_store = FAISS.load_local(embeddings=embeddings, folder_path=config['vector_store_path'])
@@ -99,7 +90,7 @@ retriever = vector_store.as_retriever(search_kwargs={'k': n_documents}) # config
 # get relevant documents
 docs = retriever.get_relevant_documents(question)
 for doc in docs: 
-  print(doc.page_content,'*'*50) 
+  print(doc.page_content,'\n','*'*50) 
 
 # COMMAND ----------
 
@@ -153,7 +144,7 @@ qa_chain = LLMChain(
 
 # DBTITLE 1,Generate a Response
 # for each provided document
-doc = docs[3]
+doc = docs[0]
 
 # get document text
 text = doc.page_content
@@ -198,12 +189,12 @@ class QABot():
     result = True # default response
 
     badanswer_phrases = [ # phrases that indicate model produced non-answer
-      "no information", "no context", "don't know", "no clear answer", "sorry","not mentioned","do not know","I don't see any information",
+      "no information", "no context", "don't know", "no clear answer", "sorry","not mentioned","do not know","i don't see any information",
       "no answer", "no mention","not mentioned","not mention", "context does not provide", "no helpful answer", "not specified","not know the answer", 
-      "no helpful", "no relevant", "no question", "not clear","not explicitly mentioned",
-      "don't have enough information", " does not have the relevant information", "does not seem to be directly related"
+      "no helpful", "no relevant", "no question", "not clear","not explicitly mentioned","provide me with the actual context document",
+      "i'm ready to assist",
+      "don't have enough information", " does not have the relevant information", "does not seem to be directly related","cannot determine"
       ]
-    
     if answer is None: # bad answer if answer is none
       results = False
     else: # bad answer if contains badanswer phrase
@@ -300,15 +291,17 @@ class QABot():
 
 # COMMAND ----------
 
-# what is the definition of Unoccupied in the policy?
-# "Does the policy cover leaks from dishwasher in the building section?"
-# "what are limits of the High risk property in the policy?"
-# Is damage from low flying aircraft covered by the policy?
-# Does the policy cover plants in the garden in the content section?
+# what is limit of the misfueling cost covered in the policy?
+# what is the name of policy holder?
+# what is the duration for the policy?
+# what is the duration for the policy bought by the policy holder mentioned in the policy schedule / Validation schedule?
+# "what is the vehicle age covered by the policy?"
+# "what are the regions covered by the policy?"
+# what happens if I lose my keys?
 
 # COMMAND ----------
 
-question =   "Does the policy cover leaks from dishwasher in the building section?"
+question =  "What is the maximum Age of a Vehicle the insurance covers?"
 
 # COMMAND ----------
 
@@ -345,25 +338,89 @@ class MLflowQABot(mlflow.pyfunc.PythonModel):
 
 # COMMAND ----------
 
-# MAGIC %md We can then instantiate our model and log it to the [MLflow registry](https://docs.databricks.com/mlflow/model-registry.html) as follows:
+# MAGIC %md We can then instantiate our model and log the results to compare different model performance
 
 # COMMAND ----------
 
-# DBTITLE 1,Persist Model to MLflow
+try :
+  spark.read.table("eval_questions")
+except:
+  print("Creating the evaluation dataset")
+  questions = pd.DataFrame(
+      {
+          "question": [
+              "what is limit of the misfueling cost covered in the policy?",
+              "what happens if I lose my keys?",
+              "what is the vehicle age covered by the policy?",
+              "what are the regions covered by the policy?",
+              "what is the duration for the policy bought by the policy holder mentioned in the policy schedule / Validation schedule?"
+          ]
+      }
+  )
+  _ = (
+    spark.createDataFrame(questions)
+      .write
+      .format('delta')
+      .mode('overwrite')
+      .option('overwriteSchema','true')
+      .saveAsTable("eval_questions")
+    )
+
+# COMMAND ----------
+
+# DBTITLE 1,Persist Evaluation to MLflow
 # instantiate mlflow model
 model = MLflowQABot(llm, retriever, chat_prompt)
 
-# persist model to mlflow
-with mlflow.start_run():
-  _ = (
-    mlflow.pyfunc.log_model(
-      python_model=model,
-      extra_pip_requirements=['langchain==0.0.166', 'tiktoken==0.4.0', 'openai==0.27.6', 'faiss-cpu==1.7.4', 'typing-inspect==0.8.0', 'typing_extensions==4.5.0'],
-      artifact_path='model',
-      registered_model_name=config['registered_model_name']
-      )
-    )
+with mlflow.start_run(run_name = config['model_id']):
+  # Load the dataset and add it to the model run
+    questions = mlflow.data.load_delta(table_name = 'eval_questions')
+    mlflow.log_input(questions, context="eval_set")
 
+  # Load model Parameters
+    mlflow.log_param("model_id",config['model_id'])
+    mlflow.log_param("embedding_model",config['embedding_model'])
+    
+    # mlflow.log_param("prompt template",config['template'])
+
+  # log pipeline_params
+    if config['pipeline_kwargs']:
+      mlflow.log_params(config['pipeline_kwargs'])
+  
+    if config['model_kwargs'] != {}:
+      mlflow.log_params(config['model_kwargs'])
+
+
+    questions = spark.read.table("eval_questions").toPandas()
+    outputs = model.predict(context = None,inputs =questions)
+
+    # Evaluate the model on some example questions
+    table_dict = {
+    "questions": list(questions['question']),
+    "outputs": [output['answer']for output in outputs],
+    "source": [output['source']for output in outputs],
+    "template": [config['template']for output in outputs]
+    }
+    mlflow.log_table(table_dict,"eval.json")
+    # mlflow.evaluate(
+    #     model=logged_model.model_uri,
+    #     model_type="question-answering",
+    #     data=questions,
+    # )
+    mlflow.end_run()
+
+# COMMAND ----------
+
+list(questions['question'])
+# questions = pd.DataFrame(
+#     {
+#         "question": [
+#             "what is limit of the misfueling cost covered in the policy?",
+#             "what happens if I lose my keys?",
+#         ]
+#     }
+# )
+# outputs = model.predict(context = None,inputs =questions)
 
 # COMMAND ----------
 
@@ -396,22 +453,6 @@ client.transition_model_version_stage(
 # COMMAND ----------
 
 # MAGIC %md We can then retrieve the model from the registery and submit a few questions to verify the response:
-
-# COMMAND ----------
-
-# DBTITLE 1,Test the Model
-# retrieve model from mlflow
-model = mlflow.pyfunc.load_model(f"models:/{config['registered_model_name']}/Production")
-
-# assemble question input
-queries = pd.DataFrame({'question':[
-  "How to read data with Delta Sharing?",
-  "What are Delta Live Tables datasets?",
-  "How to set up Unity Catalog?"
-]})
-
-# get a response
-model.predict(queries)
 
 # COMMAND ----------
 

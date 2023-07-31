@@ -29,7 +29,7 @@
 # MAGIC
 # MAGIC # install text-generation-inference
 # MAGIC rm -rf  /local_disk0/tmp/text-generation-inference
-# MAGIC cd /local_disk0/tmp && git clone https://github.com/huggingface/text-generation-inference.git 
+# MAGIC cd /local_disk0/tmp && git clone https://github.com/huggingface/text-generation-inference.git  --branch v1.0.0
 # MAGIC cd /local_disk0/tmp/text-generation-inference && make install
 # MAGIC
 # MAGIC # install flash-attention
@@ -42,10 +42,19 @@
 # COMMAND ----------
 
 import os 
-os.environ['HUGGING_FACE_HUB_TOKEN'] = 'xxxxxxxxxx'
+nodeid = spark.conf.get('spark.databricks.driverNodeTypeId')
+if "A100" in nodeid:
+  os.environ['sharded'] = 'false'
+  os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+else:
+  os.environ['sharded'] = 'true'
+  os.environ['CUDA_VISIBLE_DEVICES'] = "0,1,2,3"
+
+
+os.environ['HUGGING_FACE_HUB_TOKEN'] = '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'
 os.environ['HUGGINGFACE_HUB_CACHE'] ='/local_disk0/tmp/'
-os.environ['CUDA_MEMORY_FRACTION'] = ".85"
-os.environ['CUDA_VISIBLE_DEVICES'] = "0,1,2,3"
+os.environ['CUDA_MEMORY_FRACTION'] = "1"
+
 
 # COMMAND ----------
 
@@ -58,7 +67,7 @@ os.environ['model_id'] = config['model_id']
 if "load_in_8bit" in config['model_kwargs']:
   os.environ['quantize'] = "bitsandbytes"
 else:
-  del os.environ['quantize']
+  os.environ['quantize'] = "none"
 
 
 # COMMAND ----------
@@ -81,11 +90,15 @@ port = {port}
 # MAGIC source "$HOME/.cargo/env"
 # MAGIC
 # MAGIC if [ -z ${quantize} ]; 
-# MAGIC     then echo "quantize" && text-generation-launcher --model-id $model_id --port 8880 --trust-remote-code --sharded true --max-input-length 2048 --max-total-tokens 4096 ;
-# MAGIC else text-generation-launcher --model-id $model_id --port 8880 --trust-remote-code --sharded true --max-input-length 2048 --max-total-tokens 4096 --quantize bitsandbytes --max-batch-prefill-tokens 2048;
+# MAGIC     then echo "quantize" && text-generation-launcher --model-id $model_id --port 8880 --trust-remote-code --sharded $sharded --max-input-length 2048 --max-total-tokens 4096 ;
+# MAGIC else text-generation-launcher --model-id $model_id --port 8880 --trust-remote-code --sharded $sharded --max-input-length 2048 --max-total-tokens 4096 --quantize bitsandbytes  ;
 # MAGIC fi
 # MAGIC
 
 # COMMAND ----------
 
 ! kill -9  $(ps aux | grep 'text-generation' | awk '{print $2}')
+
+# COMMAND ----------
+
+

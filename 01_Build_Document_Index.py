@@ -1,5 +1,5 @@
 # Databricks notebook source
-# MAGIC %md The purpose of this notebook is to access and prepare our data for use with the QA Bot accelerator.  This notebook is available at https://github.com/databricks-industry-solutions/diy-llm-qa-bot.
+# MAGIC %md The purpose of this notebook is to access and prepare our data for use with the QA Bot accelerator.  This notebook is inspired from https://github.com/databricks-industry-solutions/diy-llm-qa-bot.
 
 # COMMAND ----------
 
@@ -7,7 +7,7 @@
 # MAGIC
 # MAGIC So that our qabot application can respond to user questions with relevant answers, we will provide our model with content from documents relevant to the question being asked.  The idea is that the bot will leverage the information in these documents as it formulates a response.
 # MAGIC
-# MAGIC For our application, we've extracted a series of documents from [Databricks documentation](https://docs.databricks.com/), [Spark documentation](https://spark.apache.org/docs/latest/), and the [Databricks Knowledge Base](https://kb.databricks.com/).  Databricks Knowledge Base is an online forum where frequently asked questions are addressed with high-quality, detailed responses.  Using these three documentation sources to provide context will allow our bot to respond to questions relevant to this subject area with deep expertise.
+# MAGIC For our application, we've extracted a series of documents from a dummy insurance document.
 # MAGIC
 # MAGIC </p>
 # MAGIC
@@ -25,141 +25,34 @@
 # COMMAND ----------
 
 # DBTITLE 1,Import Required Functions
-import pyspark.sql.functions as fn
-
 import json
 
+import pyspark.sql.functions as fn
 from langchain.text_splitter import TokenTextSplitter
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.embeddings import HuggingFaceEmbeddings,HuggingFaceInstructEmbeddings
 from langchain.vectorstores.faiss import FAISS
 
+from util.pre_process import preprocess_using_langchain , preprocess_using_formrecognizer
+
 # COMMAND ----------
 
-# DBTITLE 1,Get Config Settings
 # MAGIC %run "./util/notebook-config"
 
 # COMMAND ----------
 
 # MAGIC %md ##Step 1: Load the Raw Data to Table
-# MAGIC
-# MAGIC We added the Financial Report for LSEG for 2022 and stored it in a raw text format. We can create a separate process to convert the pdf to txt
 
 # COMMAND ----------
 
-# MAGIC %pip install azure-ai-formrecognizer
+if config['use_azure_formrecognizer'] == True:
+  df = preprocess_using_formrecognizer(config)
+else:
+  df = preprocess_using_langchain(config)
 
 # COMMAND ----------
 
-from azure.ai.formrecognizer import DocumentAnalysisClient
-from azure.core.credentials import AzureKeyCredential
-
-endpoint = "https://pj-form.cognitiveservices.azure.com/"
-key  = AzureKeyCredential("xxxxxxxxxxx")
-
-# COMMAND ----------
-
-headers = {}
-
-# COMMAND ----------
-
-def generate_doc(result):
-  doc = ''
-  headers = {}
-  t = []
-  for table_idx, table in enumerate(result.tables):
-      for cell in table.cells:
-          t.append(cell.content.replace(":selected:","").replace(":unselected:","").replace("\n","").strip())
-
-  if len(result.paragraphs) > 0:
-      for paragraph in result.paragraphs:
-          paragraph.content = paragraph.content.replace(":selected:","").replace(":unselected:","").replace("\n","").strip()
-          if  (paragraph.content not in t) and (paragraph.role not in ['pageNumber','pageFooter']):
-              doc += paragraph.content +'\n'
-
-  for table_idx, table in enumerate(result.tables):
-      doc += "Below is a Table:" + "\n"
-      for cell in table.cells:
-          cell.content = cell.content.replace(":selected:","").replace(":unselected:","")
-          if cell.kind != 'content':
-              if cell.kind == 'columnHeader':
-                headers[cell.column_index] = cell.content
-
-              doc += f"Cell[{cell.row_index}][{cell.column_index}] as {cell.kind} has text '{cell.content}'" + "\n" 
-          else:
-              if cell.column_index not in headers:
-                doc += f"Cell[{cell.row_index}][{cell.column_index}] has text '{cell.content}'" +"\n"
-              else:
-                doc += f"Cell[{cell.row_index}][{cell.column_index}] with column heading '{headers[cell.column_index]}' has text '{cell.content}'" +"\n"
-  return doc
-
-# COMMAND ----------
-
-rootdir = "/dbfs/FileStore/howden_azure_form_poc"
-filees = 'document_page21.pdf'
-document_analysis_client = DocumentAnalysisClient(endpoint, key)
-
-with open(os.path.join(rootdir,filees), "rb") as fd:
-  document = fd.read()
-
-poller = document_analysis_client.begin_analyze_document("prebuilt-layout", document)
-result = poller.result()
-
-# COMMAND ----------
-
-print(generate_doc(result))
-
-# COMMAND ----------
-
-import os
-rootdir = "/dbfs/FileStore/howden_azure_form_poc"
-document_analysis_client = DocumentAnalysisClient(endpoint, key)
-Doc_collection = []
-
-for subdir, dirs, files in os.walk(rootdir):
-    for file in files:
-      with open(os.path.join(rootdir,file), "rb") as fd:
-        document = fd.read()
-
-      poller = document_analysis_client.begin_analyze_document("prebuilt-layout", document)
-      result = poller.result()
-      print(generate_doc(result))
-      Doc_collection.append({
-        "full_text" : generate_doc(result),
-        "source" : os.path.join(rootdir,file)
-      })
-
-
-# COMMAND ----------
-
-# DBTITLE 1,Read Data from txt to Dataframe
-from langchain.docstore.document import Document
-from langchain.document_loaders import PyPDFDirectoryLoader
-
-# f = open("/dbfs/FileStore/howden_poc_with_txt/Rainbow_Home___Policy_Wording_zam.txt", "r")
-# data =f.read()
-# chunk = data.split("                       Rainbow Home insurance")
-import pandas as pd
-df = pd.DataFrame(Doc_collection)
-# df = pd.DataFrame.from_dict({'full_text' : chunk , 'source' : list(range(1,len(chunk)+1))})
 display(df)
-
-# COMMAND ----------
-
-# from langchain.docstore.document import Document
-# from langchain.document_loaders import PyPDFDirectoryLoader
-
-# loader_path ='/dbfs/FileStore/howden_poc/'
-
-# pdf_loader = PyPDFDirectoryLoader(loader_path)
-# docs = pdf_loader.load()
-# len(docs)
-
-# import pandas as pd
-# df = pd.DataFrame.from_dict({'page_content' : [doc.page_content for doc in docs] ,
-#                             'source' :[doc.metadata['source'] for doc in docs],
-#                             'page' :[doc.metadata['page']  for doc in docs]  })
-# display(df)
 
 # COMMAND ----------
 
@@ -175,11 +68,11 @@ _ = (
     .format('delta')
     .mode('overwrite')
     .option('overwriteSchema','true')
-    .saveAsTable('policy_document_howden')
+    .saveAsTable(config['use-case'])
   )
 
 # count rows in table
-print(spark.table('policy_document_howden').count())
+print(spark.table(config['use-case']).count())
 
 # COMMAND ----------
 
@@ -195,7 +88,7 @@ print(spark.table('policy_document_howden').count())
 # DBTITLE 1,Retrieve Raw Inputs
 raw_inputs = (
   spark
-    .table('policy_document_howden')
+    .table(config['use-case'])
     .selectExpr(
       'full_text',
       'source'
@@ -248,8 +141,8 @@ for chunk in text_splitter.split_text(long_text):
 # COMMAND ----------
 
 # DBTITLE 1,Chunking Configurations
-chunk_size = 2000
-chunk_overlap = 300
+chunk_size = 1024
+chunk_overlap = 350
 
 # COMMAND ----------
 
@@ -338,6 +231,14 @@ vector_store.save_local(folder_path=config['vector_store_path'])
 
 # COMMAND ----------
 
+dbutils.notebook.exit("exit")
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
 # MAGIC %md © 2023 Databricks, Inc. All rights reserved. The source in this notebook is provided subject to the Databricks License. All included or referenced third party libraries are subject to the licenses set forth below.
 # MAGIC
 # MAGIC | library                                | description             | license    | source                                              |
@@ -346,3 +247,7 @@ vector_store.save_local(folder_path=config['vector_store_path'])
 # MAGIC | tiktoken | Fast BPE tokeniser for use with OpenAI's models | MIT  |   https://pypi.org/project/tiktoken/ |
 # MAGIC | faiss-cpu | Library for efficient similarity search and clustering of dense vectors | MIT  |   https://pypi.org/project/faiss-cpu/ |
 # MAGIC | openai | Building applications with LLMs through composability | MIT  |   https://pypi.org/project/openai/ |
+
+# COMMAND ----------
+
+

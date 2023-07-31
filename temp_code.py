@@ -113,5 +113,123 @@ screen, tyres and wheels, headlights, the undercarriage or the roof.\nb) loss of
 
 # COMMAND ----------
 
-question =   "what is the start date of the policy mentioned in the  Policy Schedule / Validation Certificate?"
-config['human_message_template'] = """<|im_start|>system\n-You are a helpful assistant chatbot trained by MosaicML.\n-You answer questions.-if you cannot find the answer , say I do not know. \n-If the query doesn't form a complete question, just say I don't know\n-If there is a good answer from the context, try to summarize the context to answer the question. \n<|im_end|>\n<|im_start|>user\n Given the context: {context}. Answer the question {question} <|im_end|><|im_start|>assistant\n""".strip()
+# MAGIC %sh
+# MAGIC mkdir -p /local_disk0/vllm/ 
+# MAGIC cd  /local_disk0/vllm/ 
+# MAGIC git clone https://github.com/vllm-project/vllm.git
+# MAGIC cd vllm
+# MAGIC pip install -e .[dev]  # This may take 5-10 minutes.
+
+# COMMAND ----------
+
+dbutils.library.restartPython()
+
+# COMMAND ----------
+
+import os
+os.environ['HUGGINGFACE_HUB_CACHE'] ='/local_disk0/tmp/'
+os.environ['HUGGING_FACE_HUB_TOKEN'] = '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'
+
+# COMMAND ----------
+
+# MAGIC %pip install accelerate==0.20.3 torch==2.0.1
+
+# COMMAND ----------
+
+from vllm import LLM, SamplingParams
+
+# COMMAND ----------
+
+prompts = [
+    "Hello, my name is",
+    "The president of the United States is",
+    "The capital of France is",
+    "The future of AI is",
+]
+sampling_params = SamplingParams(temperature=0.8, top_p=0.95)
+
+# COMMAND ----------
+
+llm = LLM(model="facebook/opt-125m",use_np_weights=True,use_dummy_weights=True)
+
+# COMMAND ----------
+
+pdf_loader = PyPDFDirectoryLoader(config['loc'])
+docs = pdf_loader.load()
+len(docs)
+
+import pandas as pd
+df = pd.DataFrame.from_dict({'page_content' : [doc.page_content for doc in docs] ,
+                            'source' :[doc.metadata['source'] for doc in docs],
+                            'page' :[doc.metadata['page']  for doc in docs]  })
+display(df)
+
+# COMMAND ----------
+
+def generate_doc(result):
+  doc = ''
+  headers = {}
+  t = []
+  for table_idx, table in enumerate(result.tables):
+      for cell in table.cells:
+          t.append(cell.content.replace(":selected:","").replace(":unselected:","").replace("\n","").strip())
+
+  if len(result.paragraphs) > 0:
+      for paragraph in result.paragraphs:
+          paragraph.content = paragraph.content.replace(":selected:","").replace(":unselected:","").replace("\n","").strip()
+          if  (paragraph.content not in t) and (paragraph.role not in ['pageNumber','pageFooter']):
+              doc += paragraph.content +'\n'
+
+  for table_idx, table in enumerate(result.tables):
+      doc += "Below is a Table:" + "\n"
+      for cell in table.cells:
+          cell.content = cell.content.replace(":selected:","").replace(":unselected:","")
+          if cell.kind != 'content':
+              if cell.kind == 'columnHeader':
+                headers[cell.column_index] = cell.content
+
+              doc += f"Cell[{cell.row_index}][{cell.column_index}] as {cell.kind} has text '{cell.content}'" + "\n" 
+          else:
+              if cell.column_index not in headers:
+                doc += f"Cell[{cell.row_index}][{cell.column_index}] has text '{cell.content}'" +"\n"
+              else:
+                doc += f"Cell[{cell.row_index}][{cell.column_index}] with column heading '{headers[cell.column_index]}' has text '{cell.content}'" +"\n"
+  return doc
+
+# COMMAND ----------
+
+
+filees = 'policy_schedule.pdf'
+document_analysis_client = DocumentAnalysisClient(endpoint, key)
+
+with open(os.path.join(config['loc'],filees), "rb") as fd:
+  document = fd.read()
+
+poller = document_analysis_client.begin_analyze_document("prebuilt-layout", document)
+result = poller.result()
+
+# COMMAND ----------
+
+import os
+
+endpoint = "XXXXXX"
+key  = AzureKeyCredential("XXXXXXX")
+
+
+rootdir = "/dbfs/FileStore/howden_azure_form_poc"
+document_analysis_client = DocumentAnalysisClient(endpoint, key)
+Doc_collection = []
+
+for subdir, dirs, files in os.walk(config['loc']):
+    for file in files:
+      with open(os.path.join(config['loc'],file), "rb") as fd:
+        document = fd.read()
+
+      poller = document_analysis_client.begin_analyze_document("prebuilt-layout", document)
+      result = poller.result()
+      print(generate_doc(result))
+      Doc_collection.append({
+        "full_text" : generate_doc(result),
+        "source" : os.path.join(rootdir,file)
+      })
+
